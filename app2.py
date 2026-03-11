@@ -23,9 +23,9 @@ def analyze_transcript_with_ai(transcript):
        - מוקד: מ/ל/ד
        - ממד: ר/ת/ס
        
-    חשוב מאוד: אל תכתוב שום טקסט, הקדמה או סיכום. החזר אך ורק רשימת JSON חוקית במבנה הבא. חובה להשתמש בדיוק בשמות השדות האלה בעברית:
+    חשוב מאוד: אל תכתוב שום טקסט, הקדמה או סיכום. החזר אך ורק רשימת JSON חוקית שבה המפתחות הם אך ורק באנגלית:
     [
-      {"מקטע מהתמליל": "טקסט המקטע", "קוד MATRIX": "הקוד או NONE", "הסבר הקידוד": "הסבר קצר"}
+      {"fragment": "טקסט המקטע בעברית", "code": "מ-מ-ת או NONE", "explanation": "הסבר הקידוד בעברית"}
     ]
     """
     
@@ -41,7 +41,20 @@ def analyze_transcript_with_ai(transcript):
             json_str = raw_text
             
         data = json.loads(json_str.strip())
-        return pd.DataFrame(data)
+        df = pd.DataFrame(data)
+        
+        # תרגום בטוח של כותרות העמודות לעברית
+        rename_dict = {
+            "fragment": "מקטע מהתמליל",
+            "code": "קוד MATRIX",
+            "explanation": "הסבר הקידוד"
+        }
+        df = df.rename(columns=rename_dict)
+        
+        # סינון בטוח: מציג רק עמודות שבאמת קיימות כדי למנוע קריסת KeyError
+        available_columns = [col for col in ["מקטע מהתמליל", "קוד MATRIX", "הסבר הקידוד"] if col in df.columns]
+        
+        return df[available_columns]
         
     except json.JSONDecodeError:
         st.error("ה-AI החזיר תשובה שלא תואמת למבנה הנדרש. התשובה הגולמית:")
@@ -68,12 +81,4 @@ st.write("מנתח את ההקשר הנרטיבי כדי לסנן אירועי E
 transcript_input = st.text_area("הדבק את התמלול כאן:", height=200)
 
 if st.button("נתח באמצעות בינה מלאכותית"):
-    if API_KEY == "YOUR_API_KEY_HERE":
-        st.warning("שים לב: עליך להכניס מפתח API פעיל בקוד כדי שהניתוח יעבוד.")
-    elif transcript_input:
-        with st.spinner("ה-AI קורא את התמליל ומנתח הקשרים..."):
-            df = analyze_transcript_with_ai(transcript_input)
-            
-            if not df.empty:
-                st.success("הניתוח הושלם!")
-                st.table(df)
+    if API_KEY ==
