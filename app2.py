@@ -23,9 +23,9 @@ def analyze_transcript_with_ai(transcript):
        - מוקד: מ/ל/ד
        - ממד: ר/ת/ס
        
-    חשוב מאוד: אל תכתוב שום טקסט, הקדמה או סיכום. החזר אך ורק רשימת JSON חוקית במבנה הבא:
+    חשוב מאוד: אל תכתוב שום טקסט, הקדמה או סיכום. החזר אך ורק רשימת JSON חוקית במבנה הבא. חובה להשתמש בדיוק בשמות השדות האלה בעברית:
     [
-      {"fragment": "מקטע מהתמליל", "code": "מ-מ-ת", "explanation": "הסבר"}
+      {"מקטע מהתמליל": "טקסט המקטע", "קוד MATRIX": "הקוד או NONE", "הסבר הקידוד": "הסבר קצר"}
     ]
     """
     
@@ -33,7 +33,7 @@ def analyze_transcript_with_ai(transcript):
         response = model.generate_content(system_prompt + "\n\nהתמליל:\n" + transcript)
         raw_text = response.text
         
-        # חילוץ בכוח של ה-JSON מתוך הטקסט למקרה שהמודל מוסיף טקסט מיותר
+        # חילוץ ה-JSON למקרה שהמודל מוסיף טקסט מיותר
         match = re.search(r'\[.*\]', raw_text, re.DOTALL)
         if match:
             json_str = match.group(0)
@@ -44,13 +44,13 @@ def analyze_transcript_with_ai(transcript):
         return pd.DataFrame(data)
         
     except json.JSONDecodeError:
-        st.error("ה-AI החזיר תשובה שלא תואמת למבנה הנדרש. הנה התשובה הגולמית לבדיקה:")
+        st.error("ה-AI החזיר תשובה שלא תואמת למבנה הנדרש. התשובה הגולמית:")
         st.code(raw_text)
         return pd.DataFrame()
     except Exception as e:
         st.error(f"שגיאה כללית בניתוח: {e}")
         return pd.DataFrame()
-        
+
 # --- עיצוב הממשק (RTL) ---
 st.set_page_config(layout="wide")
 st.markdown("""
@@ -75,12 +75,5 @@ if st.button("נתח באמצעות בינה מלאכותית"):
             df = analyze_transcript_with_ai(transcript_input)
             
             if not df.empty:
-                # שינוי שמות העמודות לעברית והצגה מימין לשמאל
-                df = df.rename(columns={
-                    "fragment": "מקטע מהתמליל", 
-                    "code": "קוד MATRIX", 
-                    "explanation": "הסבר הקידוד"
-                })
-                
                 st.success("הניתוח הושלם!")
-                st.table(df[["מקטע מהתמליל", "קוד MATRIX", "הסבר הקידוד"]])
+                st.table(df)
