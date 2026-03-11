@@ -13,7 +13,7 @@ def analyze_transcript(transcript):
     genai.configure(api_key=clean_key)
     
     # שימוש במודל הקלאסי שנתמך בכל גרסאות הספריה ללא בעיות תאימות
-    model = genai.GenerativeModel('gemini-pro')
+    model = genai.GenerativeModel('gemini-1.5-flash')
     
     prompt = f"""
     אתה מומחה קליני בקידוד תמלילי פסיכותרפיה לפי מודל MATRIX (Mendlovic et al., 2017).
