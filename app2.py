@@ -5,22 +5,41 @@ import json
 import re
 
 # 1. הכנס את המפתח שלך בין המרכאות:
-API_KEY = "AIzaSyDNzs0LRyc-TsYUH_WUgwK5o-ZN4A6VAsM" 
+API_KEY = "YOUR_API_KEY_HERE" 
 
 def analyze_transcript(transcript):
-    # ניקוי אוטומטי של רווחים נסתרים מהמפתח למניעת שגיאת 400
     clean_key = API_KEY.strip()
     genai.configure(api_key=clean_key)
     
-    # שימוש במודל הקלאסי שנתמך בכל גרסאות הספריה ללא בעיות תאימות
-    model = genai.GenerativeModel('gemini-1.5-flash')
+    # --- מנגנון אוטומטי למציאת מודל תקין (מונע שגיאות 404) ---
+    try:
+        available_models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
+        
+        if not available_models:
+            st.error("לא נמצאו מודלים מאושרים למפתח שלך בשרתי גוגל.")
+            return pd.DataFrame()
+            
+        # בחירה אוטומטית במודל הראשון שהשרת מדווח כפעיל
+        chosen_model_name = available_models[0]
+        
+        # אם יש מודל מתקדם מסדרת 1.5 או Pro, נעדיף אותו
+        for name in available_models:
+            if '1.5' in name or 'pro' in name:
+                chosen_model_name = name
+                break
+                
+        model = genai.GenerativeModel(chosen_model_name)
+    except Exception as setup_error:
+        st.error(f"שגיאה בהתחברות לשרתי גוגל: {setup_error}")
+        return pd.DataFrame()
+    # ---------------------------------------------------------
     
     prompt = f"""
     אתה מומחה קליני בקידוד תמלילי פסיכותרפיה לפי מודל MATRIX (Mendlovic et al., 2017).
     
     חוקי הקידוד:
     1. פצל את התמליל למקטעים קצרים (משפטים/תורי דיבור).
-    2. חוק ה-Ex-room: כל מקטע שמתאר אירוע חיצוני, דיווח על העבר, או מתייחס לצד ג' (כמו "נופר" או "פריז") - יקבל את הקוד NONE.
+    2. חוק ה-Ex-room: כל מקטע שמתאר אירוע חיצוני, דיווח על העבר, או מתייחס לצד ג' (כמו שמות של אנשים אחרים) - יקבל את הקוד NONE.
     3. שאלות יקבלו את הקוד NONE.
     4. התייחסות ל"כאן ועכשיו" בחדר הטיפולים תקבל קוד בן 3 אותיות (למשל מ-מ-ת, ל-ד-ר).
     
@@ -47,15 +66,14 @@ def analyze_transcript(transcript):
         df = pd.DataFrame(data)
         
         # התאמת שמות העמודות
-        if len(df.columns) == 3:
+        if len(df.columns) >= 3:
+            df = df.iloc[:, :3] # לוקח רק את 3 העמודות הראשונות
             df.columns = ["מקטע מהתמליל", "קוד MATRIX", "הסבר הקידוד"]
         return df
 
     except Exception as e:
-        st.error("התרחשה שגיאה מול השרת של גוגל:")
+        st.error("התרחשה שגיאה במהלך ניתוח התמלול:")
         st.error(str(e))
-        if hasattr(e, 'message'):
-            st.write("פרטי שגיאה מדויקים:", e.message)
         return pd.DataFrame()
 
 # --- ממשק המשתמש ---
@@ -79,7 +97,7 @@ if st.button("בצע קידוד"):
     elif user_text.strip() == "":
         st.warning("נא להזין טקסט לניתוח.")
     else:
-        with st.spinner("מנתח את התמליל (זה עשוי לקחת מספר שניות)..."):
+        with st.spinner("מוצא מודל זמין ומנתח את התמליל..."):
             results_df = analyze_transcript(user_text)
             if not results_df.empty:
                 st.success("הניתוח הושלם בהצלחה!")
