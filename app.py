@@ -4,28 +4,33 @@ import re
 
 class MatrixCoder:
     def __init__(self):
-        # הגדרת המינוחים בעברית לפי התמונה והמאמר
+        # מיפוי אותיות לעברית (דובר/מוקד/ממד)
         self.map = {
-            'P': 'מ', 'T': 'ל', 'D': 'ד', # דובר/מוקד: מטופל, מטפל, דיאדה
-            'S': 'ר', 'C': 'ת', 'O': 'ס'  # ממד: מרחב, תוכן, סדר
+            'P': 'מ', 'T': 'ל', 'D': 'ד', # מטופל, מטפל, דיאדה
+            'S': 'ר', 'C': 'ת', 'O': 'ס'  # מרחב, תוכן, סדר
         }
 
     def is_significant_node(self, text):
-        """שלב 2: קביעת משמעות. מחריג שאלות ואירועים מחוץ לחדר [cite: 139, 140]"""
+        """שלב 2: סינון קפדני של אירועים מחוץ לחדר ושאלות"""
         text_lower = text.lower()
-        # החרגת שאלות לפי המדריך [cite: 139]
+        
+        # 1. החרגת שאלות (סימן שאלה)
         if "?" in text or len(text.strip()) < 2:
             return False
+            
+        # 2. סינון אירועים חיצוניים (דיווחים על העבר/צד ג' מחוץ לפגישה)
+        # אם המשפט מכיל מילות עבר חיצוניות ללא קישור ל"כאן ועכשיו", הוא נפסל
+        external_markers = ["אתמול", "נפגשתי", "היתה", "היה שם", "הם", "מחוץ"]
+        internal_markers = ["אני", "אתה", "את", "אנחנו", "עכשיו", "בחדר", "בינינו", "הפגישה", "מרגיש/ה", "חושב/ת"]
         
-        # סינון אירועים מחוץ לחדר (רק מה שמתייחס ל-P/T/D בתוך הפגישה) 
-        inside_room_keywords = ["אני", "אתה", "את", "אנחנו", "כאן", "עכשיו", "בחדר", "בינינו", "הפגישה", "הקשר", "מרגיש/ה", "חושב/ת"]
-        if not any(word in text_lower for word in inside_room_keywords):
+        # אם יש סממנים חיצוניים ואין סממנים חזקים של ה"כאן ועכשיו" - זה NONE
+        if any(word in text_lower for word in external_markers) and not any(word in text_lower for word in ["בינינו", "בחדר", "הקשר שלנו"]):
             return False
             
         return True
 
     def detect_focus(self, text):
-        """שלב 3: קביעת המוקד (P/T/D) [cite: 147, 148]"""
+        """שלב 3: קביעת המוקד (P/T/D) בתוך החדר"""
         text_lower = text.lower()
         if any(w in text_lower for w in ["אנחנו", "בינינו", "שנינו", "בחדר"]):
             return "D"
@@ -34,81 +39,71 @@ class MatrixCoder:
         return "P"
 
     def detect_dimension(self, text):
-        """שלב 4: קביעת המימד לפי תעדוף: Space -> Content -> Order """
-        # 1. מרחב (Space) - יכולת/אי-יכולת לחוות [cite: 54, 59]
-        if any(w in text for w in ["חסום", "ריק", "קפוא", "לא מרגיש", "בור", "יכולת", "מסוגל"]):
+        """שלב 4: קביעת המימד: מרחב -> תוכן -> סדר"""
+        # מרחב (Space) - יכולת לחוות
+        if any(w in text for w in ["חסום", "ריק", "קפוא", "לא מרגיש", "בור", "יכולת"]):
             return "S"
-        # 2. תוכן (Content) - חוויה ספציפית בחדר [cite: 60, 62]
-        if any(w in text for w in ["עצוב", "שמח", "כועס", "מרגיש", "חושב", "מסתכל", "מבין"]):
-            return "C"
-        # 3. סדר (Order) - יחסים בין חוויות או דילמות [cite: 63, 65]
-        if any(w in text for w in ["מצד אחד", "אבל", "קונפליקט", "התלבטתי", "דילמה"]):
+        # סדר (Order) - יחסים וקונפליקטים
+        if any(w in text for w in ["מצד אחד", "אבל", "קונפליקט", "דילמה"]):
             return "O"
         return "C"
 
     def get_explanation(self, focus, dim):
-        """מייצר הסבר לקידוד לפי הגדרות המאמר """
-        focus_heb = "המטופל" if focus == 'P' else "המטפל" if focus == 'T' else "הדיאדה"
+        """הסבר הקידוד לפי המאמר"""
+        focus_name = "המטופל" if focus == 'P' else "המטפל" if focus == 'T' else "הדיאדה"
         if dim == 'S':
-            return f"התייחסות של {focus_heb} ליכולת או אי-יכולת לחוות (מרחב פוטנציאלי) [cite: 54]"
+            return f"התייחסות של {focus_name} ליכולת או אי-יכולת לחוות (מרחב פוטנציאלי) "
         elif dim == 'O':
-            return f"ניסוח חוקיות, קונפליקט או יחסים בין חוויות של {focus_heb} [cite: 63]"
+            return f"ניסוח קונפליקט או יחסים בין חוויות של {focus_name} (סדר) [cite: 63]"
         else:
-            return f"דיווח ישיר על רגש, מחשבה או פעולה קונקרטית בחדר של {focus_heb} [cite: 60]"
+            return f"דיווח ישיר על רגש, מחשבה או פעולה בחדר של {focus_name} (תוכן) "
 
 def process_transcript(text):
     coder = MatrixCoder()
     lines = text.split('\n')
-    data = []
+    results = []
     
     for line in lines:
         if not line.strip(): continue
-        speaker = "P" # ברירת מחדל
+        speaker = "P"
         clean_text = line
         if ":" in line:
             prefix, clean_text = line.split(":", 1)
             if any(w in prefix for w in ["אני", "T", "מטפל"]): speaker = "T"
 
-        # שלב 1: פרגמנטציה (פיצול לתורי דיבור ומקטעים) [cite: 122, 125]
+        # פרגמנטציה (פיצול לפי נקודות)
         fragments = re.split(r'[.!]', clean_text)
         for frag in fragments:
             frag = frag.strip()
-            if not frag or not coder.is_significant_node(frag):
-                continue
+            if not frag: continue
             
-            foc = coder.detect_focus(frag)
-            dim = coder.detect_dimension(frag)
+            if coder.is_significant_node(frag):
+                foc = coder.detect_focus(frag)
+                dim = coder.detect_dimension(frag)
+                code = f"{coder.map[speaker]}-{coder.map[foc]}-{coder.map[dim]}"
+                explanation = coder.get_explanation(foc, dim)
+            else:
+                code = "NONE"
+                explanation = "אירוע חיצוני או שאלה - לא מקודד לפי המודל [cite: 139, 140]"
             
-            # בניית הקוד הסופי (דובר-מוקד-ממד)
-            final_code = f"{coder.map[speaker]}-{coder.map[foc]}-{coder.map[dim]}"
-            
-            data.append({
+            results.append({
                 "מקטע מהתמליל": f'"{frag}"',
-                "דובר": "מטפל" if speaker == "T" else "מטופל",
-                "מוקד": "מטופל" if foc == 'P' else "מטפל" if foc == 'T' else "דיאדה",
-                "ממד": "מרחב" if dim == 'S' else "תוכן" if dim == 'C' else "סדר",
-                "קוד סופי": final_code,
-                "הסבר הקידוד": coder.get_explanation(foc, dim)
+                "קוד MATRIX": code,
+                "הסבר הקידוד": explanation
             })
-    return pd.DataFrame(data)
+    return pd.DataFrame(results)
 
 # --- Streamlit UI ---
-st.set_page_config(layout="wide", page_title="MATRIX Coder")
-st.title("מערכת קידוד MATRIX - ניתוח תהליך בתוך החדר 🧠")
-st.markdown("מבוסס על *The MATRIX* (Mendlovic et al., 2017) - מסנן אירועים חיצוניים")
+st.set_page_config(layout="wide")
+st.markdown("""<style> .main {direction: rtl;} div.stButton > button {width: 100%;} </style>""", unsafe_allow_html=True)
 
-input_text = st.text_area("הדבק כאן את התמלול (לדוגמה: 'אני: אני מרגיש חסום כאן בינינו'):", height=200)
+st.title("מערכת קידוד MATRIX - ניתוח פנים-טיפולי 🧠")
 
-if st.button("בצע קידוד MATRIX"):
+input_text = st.text_area("הדבק את התמלול כאן:", height=200)
+
+if st.button("בצע קידוד"):
     if input_text:
-        results_df = process_transcript(input_text)
-        if not results_df.empty:
-            st.subheader("טבלת קידוד מפורטת:")
-            # הצגת הטבלה לעריכה
-            edited_df = st.data_editor(results_df, use_container_width=True, num_rows="dynamic")
-            
-            st.divider()
-            st.subheader("טבלה סופית להעתקה:")
-            st.table(edited_df[["מקטע מהתמליל", "קוד סופי"]])
-        else:
-            st.warning("לא נמצאו מקטעים משמעותיים המתייחסים להתרחשויות בתוך החדר (בדוק שאין סימני שאלה).")
+        df = process_transcript(input_text)
+        st.subheader("תוצאות הקידוד (מימין לשמאל):")
+        # הצגת הטבלה לפי הסדר המבוקש
+        st.table(df[["מקטע מהתמליל", "קוד MATRIX", "הסבר הקידוד"]])
