@@ -5,13 +5,13 @@ import json
 import re
 
 # 1. הכנס את המפתח שלך בין המרכאות:
-API_KEY = "AIzaSyAFucDqwsxfg2WGLhV3OKnMroBH_pQ2U08" 
+API_KEY = "YOUR_API_KEY_HERE" 
 
 def analyze_transcript(transcript):
     clean_key = API_KEY.strip()
     genai.configure(api_key=clean_key)
     
-    # --- מנגנון אוטומטי למציאת מודל תקין (מונע שגיאות 404) ---
+    # --- מנגנון אוטומטי למציאת מודל תקין ומהיר ---
     try:
         available_models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
         
@@ -19,10 +19,9 @@ def analyze_transcript(transcript):
             st.error("לא נמצאו מודלים מאושרים למפתח שלך בשרתי גוגל.")
             return pd.DataFrame()
             
-        # בחירה אוטומטית במודל הראשון שהשרת מדווח כפעיל
         chosen_model_name = available_models[0]
         
-        # אם יש מודל מתקדם מסדרת 1.5 או Pro, נעדיף אותו
+        # מחפש את מודל הפלאש המהיר שאינו חסום
         for name in available_models:
             if 'flash' in name:
                 chosen_model_name = name
@@ -32,7 +31,6 @@ def analyze_transcript(transcript):
     except Exception as setup_error:
         st.error(f"שגיאה בהתחברות לשרתי גוגל: {setup_error}")
         return pd.DataFrame()
-    # ---------------------------------------------------------
     
     prompt = f"""
     אתה מומחה קליני בקידוד תמלילי פסיכותרפיה לפי מודל MATRIX (Mendlovic et al., 2017).
@@ -52,7 +50,7 @@ def analyze_transcript(transcript):
     אות שנייה - המוקד (על מי/מה הדובר מדבר בהקשר של החדר?):
     - 'T': המוקד הוא המטפל.
     - 'P': המוקד הוא המטופל.
-    - 'D': המוקד הוא הדיאדה (היחסים ביניהם, הקשר, ה"אנחנו" - Diad).
+    - 'D': המוקד הוא הדיאדה (היחסים ביניהם, הקשר, ה"אנחנו").
     
     אות שלישית - הממד (באיזה ערוץ או אופן מובעת החוויה?):
     - 'A': רגש (Affect - ביטוי של רגשות, תחושות נפשיות).
@@ -84,7 +82,7 @@ def analyze_transcript(transcript):
         
         # התאמת שמות העמודות
         if len(df.columns) >= 3:
-            df = df.iloc[:, :3] # לוקח רק את 3 העמודות הראשונות
+            df = df.iloc[:, :3] 
             df.columns = ["מקטע מהתמליל", "קוד MATRIX", "הסבר הקידוד"]
         return df
 
