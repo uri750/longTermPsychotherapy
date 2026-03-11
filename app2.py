@@ -5,7 +5,6 @@ import json
 import re
 
 # כאן תצטרך להכניס את מפתח ה-API שלך
-# אפשר גם להגדיר את זה בצורה מאובטחת דרך st.secrets
 API_KEY = "YOUR_API_KEY_HERE" 
 genai.configure(api_key=API_KEY)
 
@@ -34,7 +33,7 @@ def analyze_transcript_with_ai(transcript):
         response = model.generate_content(system_prompt + "\n\nהתמליל:\n" + transcript)
         raw_text = response.text
         
-        # חילוץ בכוח של ה-JSON מתוך הטקסט
+        # חילוץ בכוח של ה-JSON מתוך הטקסט למקרה שהמודל מוסיף טקסט מיותר
         match = re.search(r'\[.*\]', raw_text, re.DOTALL)
         if match:
             json_str = match.group(0)
