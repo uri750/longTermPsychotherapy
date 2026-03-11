@@ -24,7 +24,7 @@ def analyze_transcript(transcript):
         
         # אם יש מודל מתקדם מסדרת 1.5 או Pro, נעדיף אותו
         for name in available_models:
-            if '1.5' in name or 'pro' in name:
+            if 'flash' in name:
                 chosen_model_name = name
                 break
                 
