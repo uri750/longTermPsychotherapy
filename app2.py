@@ -5,7 +5,7 @@ import json
 import re
 
 # 1. הכנס את מפתח ה-API שלך כאן בין המרכאות:
-API_KEY = "AIzaSyANFUVovsAnswVOtQsd1YybDdYGhyjoI-E" 
+API_KEY = "AIzaSyDNzs0LRyc-TsYUH_WUgwK5o-ZN4A6VAsM" 
 
 def analyze_transcript(transcript):
     genai.configure(api_key=API_KEY)
