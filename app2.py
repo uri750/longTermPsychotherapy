@@ -4,7 +4,7 @@ import google.generativeai as genai
 import json
 import re
 
-# הדבק כאן את מפתח ה-API שלך במקום הטקסט בפנים:
+# הדבק כאן את מפתח ה-API שלך:
 API_KEY = "YOUR_API_KEY_HERE" 
 genai.configure(api_key=API_KEY)
 
@@ -13,20 +13,15 @@ def analyze_transcript_with_ai(transcript):
     
     system_prompt = """
     אתה מומחה קליני בקידוד תמלילי פסיכותרפיה לפי מודל MATRIX (Mendlovic et al., 2017).
-    משימתך:
-    1. קבל את התמליל ופצל אותו למקטעים קצרים (תורי דיבור ומשפטים).
-    2. קודד כל מקטע תוך הבנת ההקשר המלא של הפגישה.
-    3. חוק ה-Ex-room: אם המקטע מתאר אירוע חיצוני, דיווח על העבר, או צד ג' - החזר תמיד NONE.
-    4. חוק השאלות: שאלות החזר NONE.
-    5. אם המקטע הוא "כאן ועכשיו" בחדר, החזר קוד של 3 אותיות:
-       - דובר: מ/ל
-       - מוקד: מ/ל/ד
-       - ממד: ר/ת/ס
-       
-    חשוב מאוד: אל תכתוב שום טקסט, הקדמה או סיכום. החזר אך ורק רשימת JSON חוקית הבנויה כמערך של מערכים (רשימה של רשימות). ללא מפתחות כלל, רק ערכים לפי הסדר הזה: [טקסט המקטע, קוד, הסבר].
-    דוגמה:
+    1. קבל תמליל ופצל למקטעים קצרים.
+    2. קודד כל מקטע תוך הבנת ההקשר הנרטיבי המלא.
+    3. חוק ה-Ex-room: אירוע חיצוני, דיווח על העבר, או צד ג' - החזר NONE.
+    4. חוק השאלות: שאלות - החזר NONE.
+    5. "כאן ועכשיו" בחדר - החזר קוד (מ/ל-מ/ל/ד-ר/ת/ס).
+    
+    החזר אך ורק רשימת JSON חוקית. הנה המבנה הנדרש:
     [
-      ["זה מקטע מהתמליל", "מ-מ-ת", "זה הסבר הקידוד"]
+      {"text": "המקטע", "code": "הקוד", "exp": "הסבר"}
     ]
     """
     
@@ -34,7 +29,7 @@ def analyze_transcript_with_ai(transcript):
         response = model.generate_content(system_prompt + "\n\nהתמליל:\n" + transcript)
         raw_text = response.text
         
-        # חילוץ ה-JSON
+        # חילוץ ה-JSON נטו
         match = re.search(r'\[.*\]', raw_text, re.DOTALL)
         if match:
             json_str = match.group(0)
@@ -43,28 +38,30 @@ def analyze_transcript_with_ai(transcript):
             
         data = json.loads(json_str.strip())
         
-        # יצירת טבלה מהנתונים הגולמיים
-        df = pd.DataFrame(data)
-        
-        if not df.empty:
-            # כפייה אגרסיבית של שמות העמודות, בלי קשר למה שה-AI יצר
-            num_cols = len(df.columns)
-            target_cols = ["מקטע מהתמליל", "קוד MATRIX", "הסבר הקידוד"]
-            
-            if num_cols >= 3:
-                df = df.iloc[:, :3]
-                df.columns = target_cols
+        # "חסין כדורים": מתעלם מהשמות שה-AI נתן ולוקח רק את הערכים עצמם
+        clean_rows = []
+        for item in data:
+            if isinstance(item, dict):
+                vals = list(item.values())
+            elif isinstance(item, list):
+                vals = item
             else:
-                df.columns = target_cols[:num_cols]
+                continue
                 
+            # מבטיח שתמיד יהיו בדיוק 3 עמודות (משלים בריק אם חסר, חותך אם יש עודף)
+            vals = vals + [""] * (3 - len(vals))
+            clean_rows.append(vals[:3])
+            
+        # בניית טבלה חדשה ונקייה
+        df = pd.DataFrame(clean_rows, columns=["מקטע מהתמליל", "קוד MATRIX", "הסבר הקידוד"])
         return df
         
-    except json.JSONDecodeError:
-        st.error("ה-AI החזיר תשובה שלא תואמת למבנה הנדרש. התשובה הגולמית:")
-        st.code(raw_text)
-        return pd.DataFrame()
     except Exception as e:
-        st.error(f"שגיאה כללית בניתוח: {e}")
+        st.error(f"שגיאה בפענוח הנתונים מהמודל. הנה מה שהמודל החזיר:")
+        try:
+            st.code(raw_text)
+        except:
+            st.write(e)
         return pd.DataFrame()
 
 # --- עיצוב הממשק (RTL) ---
@@ -92,4 +89,4 @@ if st.button("נתח באמצעות בינה מלאכותית"):
             
             if not df.empty:
                 st.success("הניתוח הושלם!")
-                st.table(df) # מציג את הטבלה ללא
+                st.table(df)
