@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import google.generativeai as genai
 import json
+import re
 
 # כאן תצטרך להכניס את מפתח ה-API שלך
 # אפשר גם להגדיר את זה בצורה מאובטחת דרך st.secrets
@@ -9,43 +10,48 @@ API_KEY = "YOUR_API_KEY_HERE"
 genai.configure(api_key=API_KEY)
 
 def analyze_transcript_with_ai(transcript):
-    model = genai.GenerativeModel('gemini-1.5-flash') # או מודל מתקדם יותר
+    model = genai.GenerativeModel('gemini-1.5-flash')
     
     system_prompt = """
     אתה מומחה קליני בקידוד תמלילי פסיכותרפיה לפי מודל MATRIX (Mendlovic et al., 2017).
     משימתך:
     1. קבל את התמליל ופצל אותו למקטעים קצרים (תורי דיבור ומשפטים).
-    2. קודד כל מקטע תוך הבנת ההקשר המלא של הפגישה (חלון הקשר נרטיבי).
-    3. חוק ה-Ex-room: אם המקטע הוא חלק מסיפור על אירוע מחוץ לחדר, דיווח על העבר, או מתייחס לדמויות חיצוניות שאינן בדיאדה - עליך להחזיר תמיד NONE.
-    4. חוק השאלות: שאלות אינן מקודדות (החזר NONE).
-    5. אם המקטע מתייחס ל"כאן ועכשיו" בחדר הטיפולים, החזר קוד בן 3 אותיות לפי המפתח הבא:
-       - דובר: מ (מטופל), ל (מטפל).
-       - מוקד: מ (מטופל), ל (מטפל), ד (דיאדה).
-       - ממד (לפי סדר עדיפויות): ר (מרחב - פוטנציאל לחוות), ת (תוכן - חוויה קונקרטית/רגש), ס (סדר - קונפליקט/התלבטות).
+    2. קודד כל מקטע תוך הבנת ההקשר המלא של הפגישה.
+    3. חוק ה-Ex-room: אם המקטע מתאר אירוע חיצוני, דיווח על העבר, או צד ג' - החזר תמיד NONE.
+    4. חוק השאלות: שאלות החזר NONE.
+    5. אם המקטע הוא "כאן ועכשיו" בחדר, החזר קוד של 3 אותיות:
+       - דובר: מ/ל
+       - מוקד: מ/ל/ד
+       - ממד: ר/ת/ס
        
-    החזר את התשובה *אך ורק* כרשימת JSON חוקית במבנה הבא (ללא טקסט נוסף):
+    חשוב מאוד: אל תכתוב שום טקסט, הקדמה או סיכום. החזר אך ורק רשימת JSON חוקית במבנה הבא:
     [
-      {"fragment": "מקטע מהתמליל", "code": "מ-מ-ת", "explanation": "הסבר קצר על הקידוד או מדוע זה NONE"},
-      ...
+      {"fragment": "מקטע מהתמליל", "code": "מ-מ-ת", "explanation": "הסבר"}
     ]
     """
     
     try:
         response = model.generate_content(system_prompt + "\n\nהתמליל:\n" + transcript)
-        
-        # ניקוי הפלט כדי לוודא שזה JSON נקי
         raw_text = response.text
-        if "```json" in raw_text:
-            raw_text = raw_text.split("```json")[1].split("```")[0]
-        elif "```" in raw_text:
-            raw_text = raw_text.split("```")[1].split("```")[0]
+        
+        # חילוץ בכוח של ה-JSON מתוך הטקסט
+        match = re.search(r'\[.*\]', raw_text, re.DOTALL)
+        if match:
+            json_str = match.group(0)
+        else:
+            json_str = raw_text
             
-        data = json.loads(raw_text.strip())
+        data = json.loads(json_str.strip())
         return pd.DataFrame(data)
-    except Exception as e:
-        st.error(f"שגיאה בניתוח: {e}")
+        
+    except json.JSONDecodeError:
+        st.error("ה-AI החזיר תשובה שלא תואמת למבנה הנדרש. הנה התשובה הגולמית לבדיקה:")
+        st.code(raw_text)
         return pd.DataFrame()
-
+    except Exception as e:
+        st.error(f"שגיאה כללית בניתוח: {e}")
+        return pd.DataFrame()
+        
 # --- עיצוב הממשק (RTL) ---
 st.set_page_config(layout="wide")
 st.markdown("""
