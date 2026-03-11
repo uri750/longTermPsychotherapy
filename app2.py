@@ -5,7 +5,7 @@ import json
 import re
 
 # 1. הכנס את המפתח שלך בין המרכאות:
-API_KEY = "YOUR_API_KEY_HERE" 
+API_KEY = "AIzaSyDNzs0LRyc-TsYUH_WUgwK5o-ZN4A6VAsM" 
 
 def analyze_transcript(transcript):
     clean_key = API_KEY.strip()
