@@ -2,91 +2,76 @@ import streamlit as st
 import pandas as pd
 import google.generativeai as genai
 import json
-import re
 
-# הדבק כאן את מפתח ה-API שלך:
-API_KEY = "YOUR_API_KEY_HERE" 
-genai.configure(api_key=API_KEY)
+# 1. הכנס את מפתח ה-API שלך כאן
+API_KEY = "AIzaSyANFUVovsAnswVOtQsd1YybDdYGhyjoI-E" 
 
-def analyze_transcript_with_ai(transcript):
+def analyze_transcript(transcript):
+    genai.configure(api_key=API_KEY)
+    
+    # שימוש במודל המהיר והמעודכן ביותר
     model = genai.GenerativeModel('gemini-1.5-flash')
     
-    system_prompt = """
+    prompt = f"""
     אתה מומחה קליני בקידוד תמלילי פסיכותרפיה לפי מודל MATRIX (Mendlovic et al., 2017).
-    1. קבל תמליל ופצל למקטעים קצרים.
-    2. קודד כל מקטע תוך הבנת ההקשר הנרטיבי המלא.
-    3. חוק ה-Ex-room: אירוע חיצוני, דיווח על העבר, או צד ג' - החזר NONE.
-    4. חוק השאלות: שאלות - החזר NONE.
-    5. "כאן ועכשיו" בחדר - החזר קוד (מ/ל-מ/ל/ד-ר/ת/ס).
     
-    החזר אך ורק רשימת JSON חוקית. הנה המבנה הנדרש:
-    [
-      {"text": "המקטע", "code": "הקוד", "exp": "הסבר"}
-    ]
+    חוקי הקידוד:
+    1. פצל את התמליל למקטעים קצרים (משפטים/תורי דיבור).
+    2. חוק ה-Ex-room: כל מקטע שמתאר אירוע חיצוני, דיווח על העבר, או מתייחס לצד ג' (כמו "נופר" או "נסיעה לפריז") - יקבל את הקוד NONE.
+    3. שאלות יקבלו את הקוד NONE.
+    4. התייחסות ל"כאן ועכשיו" בחדר הטיפולים תקבל קוד בן 3 אותיות (למשל מ-מ-ת, ל-ד-ר).
+    
+    התמליל לניתוח:
+    {transcript}
+    
+    עליך להחזיר מערך JSON של אובייקטים. לכל אובייקט יהיו בדיוק 3 המפתחות הבאים באנגלית:
+    "text" (המקטע מתוך התמליל), "code" (הקוד או NONE), "explanation" (הסבר קצר בעברית).
     """
-    
+
     try:
-        response = model.generate_content(system_prompt + "\n\nהתמליל:\n" + transcript)
-        raw_text = response.text
+        # 2. כפיית פלט JSON ברמת ה-API - פותר את כל שגיאות הפענוח!
+        result = model.generate_content(
+            prompt,
+            generation_config=genai.GenerationConfig(
+                response_mime_type="application/json"
+            )
+        )
         
-        # חילוץ ה-JSON נטו
-        match = re.search(r'\[.*\]', raw_text, re.DOTALL)
-        if match:
-            json_str = match.group(0)
-        else:
-            json_str = raw_text
-            
-        data = json.loads(json_str.strip())
+        # 3. טעינת הנתונים והמרתם לטבלה
+        data = json.loads(result.text)
+        df = pd.DataFrame(data)
         
-        # "חסין כדורים": מתעלם מהשמות שה-AI נתן ולוקח רק את הערכים עצמם
-        clean_rows = []
-        for item in data:
-            if isinstance(item, dict):
-                vals = list(item.values())
-            elif isinstance(item, list):
-                vals = item
-            else:
-                continue
-                
-            # מבטיח שתמיד יהיו בדיוק 3 עמודות (משלים בריק אם חסר, חותך אם יש עודף)
-            vals = vals + [""] * (3 - len(vals))
-            clean_rows.append(vals[:3])
-            
-        # בניית טבלה חדשה ונקייה
-        df = pd.DataFrame(clean_rows, columns=["מקטע מהתמליל", "קוד MATRIX", "הסבר הקידוד"])
+        # 4. שינוי שמות העמודות לעברית להצגה
+        df.columns = ["מקטע מהתמליל", "קוד MATRIX", "הסבר הקידוד"]
         return df
-        
+
     except Exception as e:
-        st.error(f"שגיאה בפענוח הנתונים מהמודל. הנה מה שהמודל החזיר:")
-        try:
-            st.code(raw_text)
-        except:
-            st.write(e)
+        st.error(f"התרחשה שגיאה בתקשורת מול ה-API: {e}")
         return pd.DataFrame()
 
-# --- עיצוב הממשק (RTL) ---
+# --- ממשק המשתמש ---
 st.set_page_config(layout="wide")
 st.markdown("""
     <style>
     .main { direction: rtl; text-align: right; }
     table { direction: rtl; margin-left: auto; margin-right: 0; }
     th, td { text-align: right !important; }
-    div[data-testid="stTable"] { direction: rtl; }
     </style>
     """, unsafe_allow_html=True)
 
-st.title("מערכת קידוד MATRIX - מבוססת AI 🧠")
-st.write("מנתח את ההקשר הנרטיבי כדי לסנן אירועי Ex-room ולזהות את הכאן-ועכשיו.")
+st.title("מערכת קידוד MATRIX 🧠")
+st.write("מנתח הקשר נרטיבי ומזהה אירועי Ex-room באמצעות בינה מלאכותית.")
 
-transcript_input = st.text_area("הדבק את התמלול כאן:", height=200)
+user_text = st.text_area("הדבק את התמלול כאן:", height=200)
 
-if st.button("נתח באמצעות בינה מלאכותית"):
+if st.button("בצע קידוד"):
     if API_KEY == "YOUR_API_KEY_HERE":
-        st.warning("שים לב: עליך להכניס מפתח API פעיל בקוד כדי שהניתוח יעבוד.")
-    elif transcript_input:
-        with st.spinner("ה-AI קורא את התמליל ומנתח הקשרים..."):
-            df = analyze_transcript_with_ai(transcript_input)
-            
-            if not df.empty:
-                st.success("הניתוח הושלם!")
-                st.table(df)
+        st.warning("נא לעדכן מפתח API חוקי בקוד.")
+    elif user_text.strip() == "":
+        st.warning("נא להזין טקסט לניתוח.")
+    else:
+        with st.spinner("מנתח את התמליל..."):
+            results_df = analyze_transcript(user_text)
+            if not results_df.empty:
+                st.success("הניתוח הושלם בהצלחה!")
+                st.table(results_df)
