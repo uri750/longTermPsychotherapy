@@ -4,7 +4,7 @@ import google.generativeai as genai
 import json
 import re
 
-# כאן תצטרך להכניס את מפתח ה-API שלך
+# הדבק כאן את מפתח ה-API שלך במקום הטקסט בפנים:
 API_KEY = "YOUR_API_KEY_HERE" 
 genai.configure(api_key=API_KEY)
 
@@ -23,9 +23,10 @@ def analyze_transcript_with_ai(transcript):
        - מוקד: מ/ל/ד
        - ממד: ר/ת/ס
        
-    חשוב מאוד: אל תכתוב שום טקסט, הקדמה או סיכום. החזר אך ורק רשימת JSON חוקית שבה המפתחות הם אך ורק באנגלית:
+    חשוב מאוד: אל תכתוב שום טקסט, הקדמה או סיכום. החזר אך ורק רשימת JSON חוקית הבנויה כמערך של מערכים (רשימה של רשימות). ללא מפתחות כלל, רק ערכים לפי הסדר הזה: [טקסט המקטע, קוד, הסבר].
+    דוגמה:
     [
-      {"fragment": "טקסט המקטע בעברית", "code": "מ-מ-ת או NONE", "explanation": "הסבר הקידוד בעברית"}
+      ["זה מקטע מהתמליל", "מ-מ-ת", "זה הסבר הקידוד"]
     ]
     """
     
@@ -33,7 +34,7 @@ def analyze_transcript_with_ai(transcript):
         response = model.generate_content(system_prompt + "\n\nהתמליל:\n" + transcript)
         raw_text = response.text
         
-        # חילוץ ה-JSON למקרה שהמודל מוסיף טקסט מיותר
+        # חילוץ ה-JSON
         match = re.search(r'\[.*\]', raw_text, re.DOTALL)
         if match:
             json_str = match.group(0)
@@ -41,20 +42,22 @@ def analyze_transcript_with_ai(transcript):
             json_str = raw_text
             
         data = json.loads(json_str.strip())
+        
+        # יצירת טבלה מהנתונים הגולמיים
         df = pd.DataFrame(data)
         
-        # תרגום בטוח של כותרות העמודות לעברית
-        rename_dict = {
-            "fragment": "מקטע מהתמליל",
-            "code": "קוד MATRIX",
-            "explanation": "הסבר הקידוד"
-        }
-        df = df.rename(columns=rename_dict)
-        
-        # סינון בטוח: מציג רק עמודות שבאמת קיימות כדי למנוע קריסת KeyError
-        available_columns = [col for col in ["מקטע מהתמליל", "קוד MATRIX", "הסבר הקידוד"] if col in df.columns]
-        
-        return df[available_columns]
+        if not df.empty:
+            # כפייה אגרסיבית של שמות העמודות, בלי קשר למה שה-AI יצר
+            num_cols = len(df.columns)
+            target_cols = ["מקטע מהתמליל", "קוד MATRIX", "הסבר הקידוד"]
+            
+            if num_cols >= 3:
+                df = df.iloc[:, :3]
+                df.columns = target_cols
+            else:
+                df.columns = target_cols[:num_cols]
+                
+        return df
         
     except json.JSONDecodeError:
         st.error("ה-AI החזיר תשובה שלא תואמת למבנה הנדרש. התשובה הגולמית:")
@@ -81,4 +84,12 @@ st.write("מנתח את ההקשר הנרטיבי כדי לסנן אירועי E
 transcript_input = st.text_area("הדבק את התמלול כאן:", height=200)
 
 if st.button("נתח באמצעות בינה מלאכותית"):
-    if API_KEY ==
+    if API_KEY == "YOUR_API_KEY_HERE":
+        st.warning("שים לב: עליך להכניס מפתח API פעיל בקוד כדי שהניתוח יעבוד.")
+    elif transcript_input:
+        with st.spinner("ה-AI קורא את התמליל ומנתח הקשרים..."):
+            df = analyze_transcript_with_ai(transcript_input)
+            
+            if not df.empty:
+                st.success("הניתוח הושלם!")
+                st.table(df) # מציג את הטבלה ללא
